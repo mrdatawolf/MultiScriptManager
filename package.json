@@ -1,0 +1,16 @@
+{
+  "name": "multi-script-manager",
+  "version": "1.0.0",
+  "description": "Manage and run scripts across multiple project folders",
+  "main": "main.js",
+  "scripts": {
+    "start": "unset ELECTRON_RUN_AS_NODE && electron ."
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "playwright-core": "^1.60.0"
+  }
+}
