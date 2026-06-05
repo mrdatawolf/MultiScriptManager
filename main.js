@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const Store = require('electron-store');
 
 const store = new Store();
@@ -224,4 +224,67 @@ ipcMain.handle('process:output', (_e, { key }) => {
 
 ipcMain.handle('process:lastRunning', () => {
   return store.get('lastRunning', []);
+});
+
+// ── Login item (start on login) ──────────────────────────────────────────────
+
+const loginItemName = 'MultiScriptManager';
+
+ipcMain.handle('settings:getLoginItem', () => {
+  if (process.platform === 'win32') {
+    const result = spawnSync('reg', [
+      'query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
+      '/v', loginItemName,
+    ], { encoding: 'utf8' });
+    return { enabled: result.status === 0 };
+  }
+  if (process.platform === 'linux') {
+    const desktopFile = path.join(
+      app.getPath('home'), '.config', 'autostart', 'multi-script-manager.desktop'
+    );
+    return { enabled: fs.existsSync(desktopFile) };
+  }
+  return { enabled: false };
+});
+
+ipcMain.handle('settings:setLoginItem', (_e, { enabled }) => {
+  if (process.platform === 'win32') {
+    const startBat = path.join(appRealPath, 'start.bat');
+    if (enabled) {
+      spawnSync('reg', [
+        'add', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
+        '/v', loginItemName,
+        '/t', 'REG_SZ',
+        '/d', `cmd.exe /c "${startBat}"`,
+        '/f',
+      ], { encoding: 'utf8' });
+    } else {
+      spawnSync('reg', [
+        'delete', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
+        '/v', loginItemName, '/f',
+      ], { encoding: 'utf8' });
+    }
+  } else if (process.platform === 'linux') {
+    const autostartDir = path.join(app.getPath('home'), '.config', 'autostart');
+    const desktopFile = path.join(autostartDir, 'multi-script-manager.desktop');
+    if (enabled) {
+      const startSh = path.join(appRealPath, 'start.sh');
+      fs.mkdirSync(autostartDir, { recursive: true });
+      try { fs.chmodSync(startSh, 0o755); } catch {}
+      fs.writeFileSync(desktopFile, [
+        '[Desktop Entry]',
+        'Type=Application',
+        `Exec="${startSh}"`,
+        'Hidden=false',
+        'NoDisplay=false',
+        'X-GNOME-Autostart-enabled=true',
+        'Name=MultiScriptManager',
+        'Comment=Start MultiScriptManager on login',
+        '',
+      ].join('\n'), 'utf8');
+    } else {
+      try { fs.unlinkSync(desktopFile); } catch {}
+    }
+  }
+  return { ok: true };
 });

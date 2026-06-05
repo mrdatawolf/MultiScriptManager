@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('api', {
   setSettings: (updates) => ipcRenderer.invoke('settings:set', updates),
   pickFolder: () => ipcRenderer.invoke('settings:pickFolder'),
   clearSettings: () => ipcRenderer.invoke('settings:clear'),
+  getLoginItem: () => ipcRenderer.invoke('settings:getLoginItem'),
+  setLoginItem: (opts) => ipcRenderer.invoke('settings:setLoginItem', opts),
 
   // Script discovery
   scanScripts: () => ipcRenderer.invoke('scripts:scan'),

@@ -320,8 +320,9 @@ function appendOutput(key, lines) {
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 
-function renderSettings() {
+async function renderSettings() {
   const s = state.settings;
+  const { enabled: loginEnabled } = await window.api.getLoginItem();
   const app = document.getElementById('app');
   app.innerHTML = `
     <div class="settings-page">
@@ -370,6 +371,10 @@ function renderSettings() {
           <label>Restore on launch</label>
           <input type="checkbox" id="restore-on-launch" ${s.restoreOnLaunch !== false ? 'checked' : ''} />
         </div>
+        <div class="form-row">
+          <label>Start on login</label>
+          <input type="checkbox" id="start-on-login" ${loginEnabled ? 'checked' : ''} />
+        </div>
       </div>
 
       <div class="settings-footer">
@@ -417,6 +422,7 @@ function renderSettings() {
     };
 
     state.settings = await window.api.setSettings(updates);
+    await window.api.setLoginItem({ enabled: document.getElementById('start-on-login').checked });
     showToast('Settings saved');
   });
 }
