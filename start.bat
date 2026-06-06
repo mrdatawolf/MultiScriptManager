@@ -29,12 +29,12 @@ if errorlevel 1 (
 )
 
 :: npm
-npm --version >nul 2>&1
+call npm --version >nul 2>&1
 if errorlevel 1 (
     echo   [FAIL] npm not found. It normally ships with Node.js.
     set /a FAIL+=1
 ) else (
-    for /f "tokens=*" %%v in ('npm --version 2^>nul') do set NPM_VER=%%v
+    for /f "tokens=*" %%v in ('call npm --version 2^>nul') do set NPM_VER=%%v
     echo   [OK]   npm !NPM_VER!
     set /a PASS+=1
 )
@@ -47,7 +47,7 @@ if exist "%DIR%\node_modules\electron" (
     echo   [WARN] node_modules missing - running npm install...
     set /a WARN+=1
     cd /d "%DIR%"
-    npm install
+    call npm install
     echo   [OK]   npm install completed
     set /a PASS+=1
 )
@@ -84,4 +84,5 @@ if %FAIL% GTR 0 (
 echo Starting Multi Script Manager...
 echo.
 cd /d "%DIR%"
-"%DIR%\node_modules\.bin\electron.cmd" "%DIR%"
+set ELECTRON_RUN_AS_NODE=
+call "%DIR%\node_modules\.bin\electron.cmd" "%DIR%"
