@@ -8,6 +8,8 @@ bin/
 # Build output
 dist/
 out/
+Distribute/*.exe
+Distribute/*.nupkg
 
 # Logs
 *.log
