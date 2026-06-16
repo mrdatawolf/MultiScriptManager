@@ -12,6 +12,11 @@ contextBridge.exposeInMainWorld('api', {
   getLoginItem: () => ipcRenderer.invoke('settings:getLoginItem'),
   setLoginItem: (opts) => ipcRenderer.invoke('settings:setLoginItem', opts),
 
+  // Folder metadata (short name + URI)
+  getFolderMeta: () => ipcRenderer.invoke('folders:getMeta'),
+  setFolderMeta: (folderName, meta) => ipcRenderer.invoke('folders:setMeta', { folderName, meta }),
+  openExternal: (uri) => ipcRenderer.invoke('shell:openExternal', uri),
+
   // Script discovery
   scanScripts: () => ipcRenderer.invoke('scripts:scan'),
 

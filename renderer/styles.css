@@ -135,7 +135,10 @@ body {
 
 .folder-name {
   font-weight: 600;
-  flex: 1;
+}
+
+.folder-badge {
+  margin-left: auto;
 }
 
 .folder-badge {
@@ -398,3 +401,65 @@ body {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ── Small button variant ───────────────────────────────────── */
+.btn-sm {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ── Folder header meta (short name + URI) ──────────────────── */
+.folder-short-name {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: rgba(78,204,163,0.12);
+  color: var(--accent-green);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+  flex-shrink: 1;
+}
+
+.folder-edit-btn {
+  opacity: 0;
+  transition: opacity 0.15s;
+  font-size: 12px;
+  padding: 3px 7px;
+}
+.folder-header:hover .folder-edit-btn { opacity: 1; }
+
+.folder-open-btn {
+  color: var(--accent-green);
+  border-color: rgba(78,204,163,0.35);
+}
+.folder-open-btn:hover {
+  color: var(--accent-green);
+  border-color: var(--accent-green);
+  opacity: 1;
+}
+
+/* ── Folder header inline edit form ─────────────────────────── */
+.folder-header-editing {
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.folder-meta-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 4px 8px;
+  font-size: 12px;
+  outline: none;
+  height: 28px;
+}
+.folder-meta-input:focus { border-color: var(--accent-green); }
+
+.folder-meta-input:not(.folder-meta-uri) { width: 80px; flex-shrink: 0; }
+.folder-meta-uri { flex: 1; min-width: 0; }

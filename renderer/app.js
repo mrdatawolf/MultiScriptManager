@@ -10,6 +10,8 @@ const state = {
   restoreKeys: [],   // keys that were running before last close
   hiddenScripts: new Set(),
   showHidden: false,
+  folderMeta: {},    // { [folderName]: { shortName, uri } }
+  editingFolder: null, // folderName currently showing the inline edit form
 };
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
@@ -18,6 +20,7 @@ async function boot() {
   state.settings = await window.api.getSettings();
   state.restoreKeys = await window.api.getLastRunning();
   state.hiddenScripts = new Set(state.settings.hiddenScripts ?? []);
+  state.folderMeta = await window.api.getFolderMeta();
 
   // Wire live events
   window.api.onOutput(({ key, lines }) => {
@@ -127,6 +130,47 @@ async function renderDashboard() {
   bindFolderEvents();
 }
 
+function renderFolderHeader(folder, runningCount) {
+  const { folderName } = folder;
+  const meta = state.folderMeta[folderName] ?? {};
+  const badge = `<span class="folder-badge ${runningCount > 0 ? 'badge-running' : 'badge-stopped'}">
+    ${runningCount > 0 ? `${runningCount} running` : `${folder.scripts.length} scripts`}
+  </span>`;
+
+  if (state.editingFolder === folderName) {
+    return `
+      <div class="folder-header folder-header-editing" data-folder="${escHtml(folderName)}">
+        <span class="folder-chevron">▶</span>
+        <input class="folder-meta-input" id="edit-shortname-${cssId(folderName)}"
+          type="text" placeholder="Short name" maxlength="8"
+          value="${escHtml(meta.shortName ?? '')}" />
+        <input class="folder-meta-input folder-meta-uri" id="edit-uri-${cssId(folderName)}"
+          type="text" placeholder="URI (e.g. http://localhost:3000)"
+          value="${escHtml(meta.uri ?? '')}" />
+        <button class="btn btn-primary btn-sm folder-meta-save" data-folder="${escHtml(folderName)}">Save</button>
+        <button class="btn btn-ghost btn-sm folder-meta-cancel" data-folder="${escHtml(folderName)}">Cancel</button>
+        ${badge}
+      </div>`;
+  }
+
+  const shortNameHtml = meta.shortName
+    ? `<span class="folder-short-name">${escHtml(meta.shortName)}</span>`
+    : '';
+  const openHtml = meta.uri
+    ? `<button class="btn btn-ghost btn-sm folder-open-btn" data-folder="${escHtml(folderName)}" data-uri="${escHtml(meta.uri)}">Open</button>`
+    : '';
+
+  return `
+    <div class="folder-header" data-folder="${escHtml(folderName)}">
+      <span class="folder-chevron">▶</span>
+      <span class="folder-name">${escHtml(folderName)}</span>
+      ${shortNameHtml}
+      ${openHtml}
+      <button class="btn btn-ghost btn-sm folder-edit-btn" data-folder="${escHtml(folderName)}">✎</button>
+      ${badge}
+    </div>`;
+}
+
 function renderFolderCards(innerOnly = false) {
   const q = state.filter.toLowerCase();
   const filtered = state.folders.map(folder => {
@@ -150,13 +194,7 @@ function renderFolderCards(innerOnly = false) {
 
     html += `
       <div class="folder-card ${isOpen ? 'open' : ''}" data-folder="${escHtml(folder.folderName)}">
-        <div class="folder-header">
-          <span class="folder-chevron">▶</span>
-          <span class="folder-name">${escHtml(folder.folderName)}</span>
-          <span class="folder-badge ${runningCount > 0 ? 'badge-running' : 'badge-stopped'}">
-            ${runningCount > 0 ? `${runningCount} running` : `${folder.scripts.length} scripts`}
-          </span>
-        </div>
+        ${renderFolderHeader(folder, runningCount)}
         <div class="script-list">
           ${folder.scripts.map(s => renderScriptRow(s)).join('')}
         </div>
@@ -195,19 +233,110 @@ function renderScriptRow(s) {
 }
 
 function bindFolderEvents() {
-  // Folder expand/collapse — safe to call once on initial render
   document.querySelectorAll('.folder-header').forEach(header => {
-    header.addEventListener('click', () => {
+    // Expand/collapse on chevron or folder name only
+    header.addEventListener('click', (e) => {
+      if (e.target.closest('.folder-edit-btn, .folder-open-btn, .folder-meta-save, .folder-meta-cancel, .folder-meta-input')) return;
       const card = header.closest('.folder-card');
       const name = card.dataset.folder;
       if (state.openFolders.has(name)) state.openFolders.delete(name);
       else state.openFolders.add(name);
       card.classList.toggle('open');
     });
+
+    // Edit button — show inline form
+    header.querySelector('.folder-edit-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const folderName = e.currentTarget.dataset.folder;
+      state.editingFolder = folderName;
+      refreshFolderHeader(folderName);
+    });
+
+    // Open button — launch URI in browser
+    header.querySelector('.folder-open-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.api.openExternal(e.currentTarget.dataset.uri);
+    });
+
+    // Save button
+    header.querySelector('.folder-meta-save')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const folderName = e.currentTarget.dataset.folder;
+      const shortName = document.getElementById(`edit-shortname-${cssId(folderName)}`)?.value.trim().slice(0, 8) ?? '';
+      const uri = document.getElementById(`edit-uri-${cssId(folderName)}`)?.value.trim() ?? '';
+      state.folderMeta = await window.api.setFolderMeta(folderName, { shortName, uri });
+      state.editingFolder = null;
+      refreshFolderHeader(folderName);
+    });
+
+    // Cancel button
+    header.querySelector('.folder-meta-cancel')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.editingFolder = null;
+      refreshFolderHeader(e.currentTarget.dataset.folder);
+    });
   });
 
   // Bind all script rows on initial render
   document.querySelectorAll('.script-row').forEach(row => bindRowActions(row));
+}
+
+function refreshFolderHeader(folderName) {
+  const card = document.querySelector(`.folder-card[data-folder="${CSS.escape(folderName)}"]`);
+  if (!card) return;
+  const folder = state.folders.find(f => f.folderName === folderName);
+  if (!folder) return;
+  const runningCount = folder.scripts.filter(s => s.status === 'running').length;
+  const oldHeader = card.querySelector('.folder-header');
+  const newHeader = document.createElement('div');
+  newHeader.innerHTML = renderFolderHeader(folder, runningCount);
+  const headerEl = newHeader.firstElementChild;
+  card.replaceChild(headerEl, oldHeader);
+  // Re-bind events for just this header
+  const allHeaders = document.querySelectorAll('.folder-header');
+  allHeaders.forEach(h => {
+    if (h.closest('.folder-card')?.dataset.folder === folderName) {
+      bindSingleFolderHeader(h);
+    }
+  });
+}
+
+function bindSingleFolderHeader(header) {
+  header.addEventListener('click', (e) => {
+    if (e.target.closest('.folder-edit-btn, .folder-open-btn, .folder-meta-save, .folder-meta-cancel, .folder-meta-input')) return;
+    const card = header.closest('.folder-card');
+    const name = card.dataset.folder;
+    if (state.openFolders.has(name)) state.openFolders.delete(name);
+    else state.openFolders.add(name);
+    card.classList.toggle('open');
+  });
+
+  header.querySelector('.folder-edit-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    state.editingFolder = e.currentTarget.dataset.folder;
+    refreshFolderHeader(e.currentTarget.dataset.folder);
+  });
+
+  header.querySelector('.folder-open-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    window.api.openExternal(e.currentTarget.dataset.uri);
+  });
+
+  header.querySelector('.folder-meta-save')?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const folderName = e.currentTarget.dataset.folder;
+    const shortName = document.getElementById(`edit-shortname-${cssId(folderName)}`)?.value.trim().slice(0, 8) ?? '';
+    const uri = document.getElementById(`edit-uri-${cssId(folderName)}`)?.value.trim() ?? '';
+    state.folderMeta = await window.api.setFolderMeta(folderName, { shortName, uri });
+    state.editingFolder = null;
+    refreshFolderHeader(folderName);
+  });
+
+  header.querySelector('.folder-meta-cancel')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    state.editingFolder = null;
+    refreshFolderHeader(e.currentTarget.dataset.folder);
+  });
 }
 
 // Bind only the action buttons inside a single script row.
@@ -336,6 +465,7 @@ function updateScriptStatus(key, status, exitCode) {
       }
     }
   }
+
 }
 
 function appendOutput(key, lines) {
