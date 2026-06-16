@@ -228,6 +228,10 @@ ipcMain.handle('process:lastRunning', () => {
   return store.get('lastRunning', []);
 });
 
+// ── App info ─────────────────────────────────────────────────────────────────
+
+ipcMain.handle('app:version', () => app.getVersion());
+
 // ── Login item (start on login) ──────────────────────────────────────────────
 
 const loginItemName = 'MultiScriptManager';
