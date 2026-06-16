@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn, spawnSync } = require('child_process');
@@ -227,6 +227,18 @@ ipcMain.handle('process:output', (_e, { key }) => {
 ipcMain.handle('process:lastRunning', () => {
   return store.get('lastRunning', []);
 });
+
+// ── Folder metadata (short name + URI) ───────────────────────────────────────
+
+ipcMain.handle('folders:getMeta', () => store.get('folderMeta', {}));
+
+ipcMain.handle('folders:setMeta', (_e, { folderName, meta }) => {
+  const existing = store.get('folderMeta', {});
+  store.set('folderMeta', { ...existing, [folderName]: meta });
+  return store.get('folderMeta', {});
+});
+
+ipcMain.handle('shell:openExternal', (_e, uri) => shell.openExternal(uri));
 
 // ── App info ─────────────────────────────────────────────────────────────────
 
