@@ -1,6 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
+  // App info
+  getVersion: () => ipcRenderer.invoke('app:version'),
+
   // Settings
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (updates) => ipcRenderer.invoke('settings:set', updates),

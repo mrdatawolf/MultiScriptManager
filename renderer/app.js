@@ -8,6 +8,8 @@ const state = {
   openLogs: new Set(),
   filter: '',
   restoreKeys: [],   // keys that were running before last close
+  hiddenScripts: new Set(),
+  showHidden: false,
 };
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
@@ -15,6 +17,7 @@ const state = {
 async function boot() {
   state.settings = await window.api.getSettings();
   state.restoreKeys = await window.api.getLastRunning();
+  state.hiddenScripts = new Set(state.settings.hiddenScripts ?? []);
 
   // Wire live events
   window.api.onOutput(({ key, lines }) => {
@@ -74,10 +77,14 @@ async function renderDashboard() {
       </div>`;
   }
 
+  const hiddenCount = state.hiddenScripts.size;
   html += `
     <div class="dashboard-header">
       <h2>Scripts</h2>
-      <button class="btn btn-ghost" id="refresh-btn">↻ Refresh</button>
+      <div class="dashboard-header-actions">
+        <button class="btn btn-ghost" id="toggle-hidden"${hiddenCount === 0 ? ' style="display:none"' : ''}>${state.showHidden ? 'Hide hidden' : `Show hidden (${hiddenCount})`}</button>
+        <button class="btn btn-ghost" id="refresh-btn">↻ Refresh</button>
+      </div>
     </div>
     <input class="search-bar" id="search" placeholder="Filter folders or scripts…" value="${escHtml(state.filter)}" />`;
 
@@ -93,6 +100,12 @@ async function renderDashboard() {
   document.getElementById('refresh-btn')?.addEventListener('click', renderDashboard);
   document.getElementById('search')?.addEventListener('input', e => {
     state.filter = e.target.value;
+    document.getElementById('folders-list').innerHTML = renderFolderCards(true);
+    bindFolderEvents();
+  });
+  document.getElementById('toggle-hidden')?.addEventListener('click', () => {
+    state.showHidden = !state.showHidden;
+    updateHiddenToggleBtn();
     document.getElementById('folders-list').innerHTML = renderFolderCards(true);
     bindFolderEvents();
   });
@@ -117,11 +130,15 @@ async function renderDashboard() {
 function renderFolderCards(innerOnly = false) {
   const q = state.filter.toLowerCase();
   const filtered = state.folders.map(folder => {
-    if (!q) return folder;
-    const nameMatch = folder.folderName.toLowerCase().includes(q);
-    const scripts = nameMatch ? folder.scripts : folder.scripts.filter(s =>
-      s.scriptFile.toLowerCase().includes(q)
-    );
+    let scripts = state.showHidden
+      ? folder.scripts
+      : folder.scripts.filter(s => !state.hiddenScripts.has(s.key));
+    if (q) {
+      const nameMatch = folder.folderName.toLowerCase().includes(q);
+      scripts = nameMatch ? scripts : scripts.filter(s =>
+        s.scriptFile.toLowerCase().includes(q)
+      );
+    }
     return { ...folder, scripts };
   }).filter(f => f.scripts.length > 0);
 
@@ -151,12 +168,13 @@ function renderFolderCards(innerOnly = false) {
 }
 
 function renderScriptRow(s) {
+  const isHidden = state.hiddenScripts.has(s.key);
   const statusClass = s.status === 'running' ? 'status-running'
     : s.status === 'crashed' ? 'status-crashed' : 'status-stopped';
   const logOpen = state.openLogs.has(s.key);
 
   return `
-    <div class="script-row" data-key="${escHtml(s.key)}">
+    <div class="script-row${isHidden ? ' script-row-hidden' : ''}" data-key="${escHtml(s.key)}">
       <div class="script-controls">
         <span class="status-dot ${statusClass}"></span>
         <span class="script-name">${escHtml(s.scriptFile)}</span>
@@ -167,6 +185,7 @@ function renderScriptRow(s) {
             : `<button class="btn btn-primary btn-sm start-btn" data-key="${escHtml(s.key)}">Start</button>`
           }
           <button class="log-toggle" data-key="${escHtml(s.key)}">${logOpen ? 'Hide log' : 'Log'}</button>
+          <button class="hide-btn" data-key="${escHtml(s.key)}">${isHidden ? 'Unhide' : 'Hide'}</button>
         </div>
       </div>
       <div class="log-pane ${logOpen ? 'open' : ''}" id="log-${cssId(s.key)}">
@@ -198,6 +217,7 @@ function bindRowActions(row) {
   const stopBtn  = row.querySelector('.stop-btn');
   const killBtn  = row.querySelector('.kill-btn');
   const logBtn   = row.querySelector('.log-toggle');
+  const hideBtn  = row.querySelector('.hide-btn');
 
   startBtn?.addEventListener('click', async e => {
     e.stopPropagation();
@@ -233,6 +253,20 @@ function bindRowActions(row) {
         pane.scrollTop = pane.scrollHeight;
       }
     }
+  });
+
+  hideBtn?.addEventListener('click', async e => {
+    e.stopPropagation();
+    const key = hideBtn.dataset.key;
+    if (state.hiddenScripts.has(key)) {
+      state.hiddenScripts.delete(key);
+    } else {
+      state.hiddenScripts.add(key);
+    }
+    await window.api.setSettings({ hiddenScripts: [...state.hiddenScripts] });
+    updateHiddenToggleBtn();
+    document.getElementById('folders-list').innerHTML = renderFolderCards(true);
+    bindFolderEvents();
   });
 }
 
@@ -270,16 +304,20 @@ function updateScriptStatus(key, status, exitCode) {
   else dot?.classList.add('status-stopped');
 
   if (actions) {
+    const isHidden = state.hiddenScripts.has(key);
     const logHtml = logToggle ? logToggle.outerHTML : `<button class="log-toggle" data-key="${escHtml(key)}">Log</button>`;
+    const hideHtml = `<button class="hide-btn" data-key="${escHtml(key)}">${isHidden ? 'Unhide' : 'Hide'}</button>`;
     if (status === 'running') {
       actions.innerHTML = `
         <button class="btn btn-warn btn-sm stop-btn" data-key="${escHtml(key)}">Stop</button>
         <button class="btn btn-danger btn-sm kill-btn" data-key="${escHtml(key)}">Kill</button>
-        ${logHtml}`;
+        ${logHtml}
+        ${hideHtml}`;
     } else {
       actions.innerHTML = `
         <button class="btn btn-primary btn-sm start-btn" data-key="${escHtml(key)}">Start</button>
-        ${logHtml}`;
+        ${logHtml}
+        ${hideHtml}`;
     }
     bindRowActions(row);
   }
@@ -322,7 +360,10 @@ function appendOutput(key, lines) {
 
 async function renderSettings() {
   const s = state.settings;
-  const { enabled: loginEnabled } = await window.api.getLoginItem();
+  const [{ enabled: loginEnabled }, appVersion] = await Promise.all([
+    window.api.getLoginItem(),
+    window.api.getVersion(),
+  ]);
   const app = document.getElementById('app');
   app.innerHTML = `
     <div class="settings-page">
@@ -369,11 +410,17 @@ async function renderSettings() {
         </div>
         <div class="form-row">
           <label>Restore on launch</label>
-          <input type="checkbox" id="restore-on-launch" ${s.restoreOnLaunch !== false ? 'checked' : ''} />
+          <label class="toggle-switch">
+            <input type="checkbox" id="restore-on-launch" ${s.restoreOnLaunch !== false ? 'checked' : ''} />
+            <span class="toggle-track"></span>
+          </label>
         </div>
         <div class="form-row">
           <label>Start on login</label>
-          <input type="checkbox" id="start-on-login" ${loginEnabled ? 'checked' : ''} />
+          <label class="toggle-switch">
+            <input type="checkbox" id="start-on-login" ${loginEnabled ? 'checked' : ''} />
+            <span class="toggle-track"></span>
+          </label>
         </div>
       </div>
 
@@ -388,6 +435,8 @@ async function renderSettings() {
           <button class="btn btn-danger" id="clear-settings">Clear all data</button>
         </div>
       </div>
+
+      <div class="settings-version">v${escHtml(appVersion)}</div>
     </div>`;
 
   document.getElementById('pick-folder').addEventListener('click', async () => {
@@ -396,6 +445,11 @@ async function renderSettings() {
       document.getElementById('folder-display').textContent = folder;
       document.getElementById('folder-display').dataset.value = folder;
     }
+  });
+
+  document.getElementById('start-on-login').addEventListener('change', async (e) => {
+    await window.api.setLoginItem({ enabled: e.target.checked });
+    showToast(e.target.checked ? 'Start on login enabled' : 'Start on login disabled');
   });
 
   document.getElementById('clear-settings').addEventListener('click', async () => {
@@ -422,7 +476,6 @@ async function renderSettings() {
     };
 
     state.settings = await window.api.setSettings(updates);
-    await window.api.setLoginItem({ enabled: document.getElementById('start-on-login').checked });
     showToast('Settings saved');
   });
 }
@@ -448,6 +501,14 @@ function escHtml(str) {
 // Make a key safe to use as a CSS id selector
 function cssId(key) {
   return key.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+function updateHiddenToggleBtn() {
+  const btn = document.getElementById('toggle-hidden');
+  if (!btn) return;
+  const hiddenCount = state.hiddenScripts.size;
+  btn.style.display = hiddenCount > 0 ? '' : 'none';
+  btn.textContent = state.showHidden ? 'Hide hidden' : `Show hidden (${hiddenCount})`;
 }
 
 function showToast(msg) {

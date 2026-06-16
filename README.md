@@ -82,6 +82,20 @@ Use **Settings → Danger zone → Clear all data** to reset everything to defau
 
 ---
 
+## Building a Windows installer
+
+```bash
+npm run dist
+```
+
+This uses `electron-builder` to produce a self-contained Squirrel.Windows installer at
+`dist/squirrel-windows/Multi Script Manager-Setup-<version>.exe`. The Setup.exe embeds the
+full application package, so it installs without needing any further downloads.
+
+A copy of the latest installer is kept in [`Distribute/`](Distribute/) for handing out to users.
+
+---
+
 ## Project structure
 
 ```

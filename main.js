@@ -10,9 +10,11 @@ const store = new Store();
 const running = new Map();
 
 // Simple glob: only * is special (matches any chars within a filename, not /)
+// Case-insensitive on Windows since NTFS filenames are case-insensitive.
 function globMatch(pattern, name) {
   const re = new RegExp(
-    '^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*') + '$'
+    '^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*') + '$',
+    process.platform === 'win32' ? 'i' : ''
   );
   return re.test(name);
 }
@@ -226,12 +228,19 @@ ipcMain.handle('process:lastRunning', () => {
   return store.get('lastRunning', []);
 });
 
+// ── App info ─────────────────────────────────────────────────────────────────
+
+ipcMain.handle('app:version', () => app.getVersion());
+
 // ── Login item (start on login) ──────────────────────────────────────────────
 
 const loginItemName = 'MultiScriptManager';
 
 ipcMain.handle('settings:getLoginItem', () => {
   if (process.platform === 'win32') {
+    if (app.isPackaged) {
+      return { enabled: app.getLoginItemSettings().openAtLogin };
+    }
     const result = spawnSync('reg', [
       'query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
       '/v', loginItemName,
@@ -249,13 +258,16 @@ ipcMain.handle('settings:getLoginItem', () => {
 
 ipcMain.handle('settings:setLoginItem', (_e, { enabled }) => {
   if (process.platform === 'win32') {
-    const startBat = path.join(appRealPath, 'start.bat');
-    if (enabled) {
+    if (app.isPackaged) {
+      // Squirrel-aware: Electron points this at Update.exe so auto-updates keep working.
+      app.setLoginItemSettings({ openAtLogin: enabled });
+    } else if (enabled) {
+      const startPs1 = path.join(appRealPath, 'start.ps1');
       spawnSync('reg', [
         'add', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run',
         '/v', loginItemName,
         '/t', 'REG_SZ',
-        '/d', `cmd.exe /c "${startBat}"`,
+        '/d', `powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File "${startPs1}"`,
         '/f',
       ], { encoding: 'utf8' });
     } else {

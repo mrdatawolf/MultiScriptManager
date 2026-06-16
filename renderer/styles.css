@@ -78,6 +78,7 @@ body {
 }
 
 .dashboard-header h2 { font-size: 18px; color: var(--text); }
+.dashboard-header-actions { display: flex; gap: 8px; align-items: center; }
 
 .btn {
   padding: 7px 16px;
@@ -197,6 +198,21 @@ body {
 }
 .log-toggle:hover { color: var(--text); background: rgba(255,255,255,0.05); }
 
+.hide-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  opacity: 0.5;
+}
+.hide-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); opacity: 1; }
+
+.script-row-hidden { opacity: 0.4; }
+.script-row-hidden .hide-btn { opacity: 1; color: var(--accent-green); }
+
 /* ── Log pane ──────────────────────────────────────────────── */
 .log-pane {
   display: none;
@@ -296,6 +312,45 @@ body {
 
 .form-row input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
 
+/* ── Toggle switch ──────────────────────────────────────────── */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+.toggle-track {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--border);
+  border-radius: 24px;
+  transition: background 0.2s;
+}
+.toggle-track::before {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  background: var(--text-dim);
+  border-radius: 50%;
+  transition: transform 0.2s, background 0.2s;
+}
+.toggle-switch input:checked + .toggle-track { background: var(--accent-green); }
+.toggle-switch input:checked + .toggle-track::before {
+  transform: translateX(18px);
+  background: var(--bg);
+}
+
 .form-row .folder-display {
   flex: 1;
   background: var(--bg);
@@ -315,6 +370,14 @@ body {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 20px;
+}
+
+.settings-version {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: 0.5;
 }
 
 .toast {

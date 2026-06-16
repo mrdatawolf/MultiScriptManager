@@ -1,16 +1,43 @@
 {
   "name": "multi-script-manager",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Manage and run scripts across multiple project folders",
   "main": "main.js",
+  "author": "Patrick (mrdatawolf)",
+  "license": "MIT",
   "scripts": {
-    "start": "unset ELECTRON_RUN_AS_NODE && electron ."
+    "start": "unset ELECTRON_RUN_AS_NODE && electron .",
+    "dist": "electron-builder --win squirrel"
   },
   "dependencies": {
     "electron-store": "^8.1.0"
   },
   "devDependencies": {
     "electron": "^33.4.11",
+    "electron-builder": "^26.15.2",
     "playwright-core": "^1.60.0"
+  },
+  "build": {
+    "appId": "com.mrdatawolf.multiscriptmanager",
+    "productName": "Multi Script Manager",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!start.sh",
+      "!start.ps1",
+      "!cleanup.sh",
+      "!cleanup.ps1",
+      "!*.md",
+      "!LICENSE",
+      "!Distribute/**"
+    ],
+    "win": {
+      "target": "squirrel"
+    },
+    "squirrelWindows": {
+      "artifactName": "${productName}-Setup-${version}.exe"
+    }
   }
 }
